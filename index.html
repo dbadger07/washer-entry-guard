@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="센서 3종과 이동 벽체로 세탁기 진입 사고를 막는 시스템의 3D 시연">
+<title>세탁기 진입 방지 시스템</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+html,body{margin:0}
+[hidden]{display:none!important}
+/* Layout: one-screen control room. 3D stage on the left, instrument panel (transport, steps, readouts, block diagram) on the right; stacks on phones. */
+:root{
+  --bg:#eef1f6; --panel:#ffffff; --ink:#161b26; --muted:#5d6678; --line:#d5dae4;
+  --accent:#2f5fe0; --accent-soft:#e3eaff; --on-accent:#ffffff;
+  --warn:#d92d3a; --warn-soft:#fde6e8; --ok:#1d8a5b; --ok-soft:#dff3ea;
+  --stage:#dfe5ef; --floor:#cbd3e0; --glass:rgba(255,255,255,.86);
+  --sans:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0f131b; --panel:#171c27; --ink:#e8ecf4; --muted:#98a2b6; --line:#2a3140;
+  --accent:#86a6ff; --accent-soft:#1e2a4d; --on-accent:#0f131b;
+  --warn:#ff6b74; --warn-soft:#3a1a1f; --ok:#4fd09a; --ok-soft:#153328;
+  --stage:#1b2130; --floor:#262e40; --glass:rgba(23,28,39,.86); color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#0f131b; --panel:#171c27; --ink:#e8ecf4; --muted:#98a2b6; --line:#2a3140;
+  --accent:#86a6ff; --accent-soft:#1e2a4d; --on-accent:#0f131b;
+  --warn:#ff6b74; --warn-soft:#3a1a1f; --ok:#4fd09a; --ok-soft:#153328;
+  --stage:#1b2130; --floor:#262e40; --glass:rgba(23,28,39,.86); color-scheme:dark }
+
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5}
+*{box-sizing:border-box}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.app{height:100%;display:grid;grid-template-columns:minmax(0,1fr) 372px;gap:16px;background:var(--bg);
+  padding-block:16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.stage{position:relative;min-width:0;min-height:0;background:var(--stage);border-radius:14px;overflow:hidden}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.tag{position:absolute;left:0;top:0;white-space:nowrap;font-family:var(--mono);font-size:11px;font-weight:500;
+  padding:2px 7px;border-radius:4px;background:var(--glass);color:var(--ink);border:1px solid var(--line);will-change:transform}
+.tag.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.tag.alert{background:var(--warn);color:var(--on-accent);border-color:var(--warn)}
+
+.banner{position:absolute;left:14px;top:14px;right:14px;max-width:560px;display:grid;gap:2px;
+  padding:12px 16px;border-radius:10px;background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(6px)}
+.banner .count{font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.04em}
+.banner strong{font-size:clamp(18px,2.2vw,28px);line-height:1.2;font-weight:700;text-wrap:balance}
+.banner .desc{font-size:clamp(13px,1.15vw,16px);color:var(--muted)}
+.banner.warn{border-color:var(--warn);background:var(--warn-soft)} .banner.warn strong{color:var(--warn)}
+.banner.info{border-color:var(--ok);background:var(--ok-soft)} .banner.info strong{color:var(--ok)}
+
+.viewbar{position:absolute;left:14px;bottom:14px;right:14px;display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--glass);border-radius:999px;padding:5px 12px;font-size:12.5px;font-weight:500;cursor:pointer}
+.chip:hover{border-color:var(--accent)}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.fallback{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:var(--muted)}
+
+.panel{min-width:0;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:14px;
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+.panel h1{margin:0;font-size:19px;font-weight:700;line-height:1.25}
+.head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.mode{flex:none;font-family:var(--mono);font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent)}
+.mode.warn{background:var(--warn-soft);color:var(--warn)} .mode.info{background:var(--ok-soft);color:var(--ok)}
+.sub{margin:2px 0 0;color:var(--muted);font-size:12.5px}
+h2{margin:0 0 6px;font-size:11.5px;font-weight:600;letter-spacing:.08em;color:var(--muted)}
+
+.scen{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.scen button{text-align:left;border:1px solid var(--line);background:transparent;border-radius:10px;padding:9px 11px;cursor:pointer;display:grid;gap:1px}
+.scen button b{font-size:14px} .scen button span{font-size:12px;color:var(--muted)}
+.scen button kbd{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.scen button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.scen button[aria-pressed="true"] b{color:var(--accent)}
+
+.transport{display:grid;gap:8px}
+.transport .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:transparent;border-radius:8px;padding:7px 12px;font-weight:600;cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);min-width:96px}
+.transport select{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:7px 8px}
+.transport input[type=range]{width:100%;accent-color:var(--accent)}
+.time{font-family:var(--mono);font-size:12px;color:var(--muted);margin-left:auto;font-variant-numeric:tabular-nums}
+
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:2px;counter-reset:s}
+.steps button{counter-increment:s;width:100%;text-align:left;border:0;background:transparent;border-radius:8px;padding:6px 8px;cursor:pointer;
+  display:grid;grid-template-columns:22px 1fr;gap:8px;align-items:baseline;color:var(--muted)}
+.steps button::before{content:counter(s);font-family:var(--mono);font-size:11px;width:20px;height:20px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center}
+.steps button.done{color:var(--ink)} .steps button.done::before{background:var(--line)}
+.steps button.now{background:var(--accent-soft);color:var(--ink);font-weight:600}
+.steps button.now::before{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.steps button:hover{background:var(--accent-soft)}
+
+.read{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cell{border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-width:0;display:grid;gap:1px}
+.cell.wide{grid-column:1/-1}
+.cell .k{font-size:11.5px;color:var(--muted)}
+.cell .v{font-family:var(--mono);font-size:19px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.25}
+.cell .s{font-size:11.5px;color:var(--muted)}
+.cell.on{border-color:var(--accent)} .cell.on .s{color:var(--accent);font-weight:600}
+.cell.alert{border-color:var(--warn);background:var(--warn-soft)} .cell.alert .s{color:var(--warn);font-weight:600}
+.cell.good{border-color:var(--ok);background:var(--ok-soft)} .cell.good .s{color:var(--ok);font-weight:600}
+
+.diagram{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:6px;align-items:center}
+.diagram .col{display:grid;gap:6px}
+.node{border:1px solid var(--line);border-radius:8px;padding:6px 7px;display:grid;gap:0;font-size:11.5px;line-height:1.3;min-width:0}
+.node b{font-weight:600} .node span{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.node.on{border-color:var(--accent);background:var(--accent-soft)}
+.node.alert{border-color:var(--warn);background:var(--warn-soft)}
+.wire{color:var(--muted);font-family:var(--mono)}
+.keys{margin:0;color:var(--muted);font-size:11.5px}
+.keys kbd{font-family:var(--mono);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+
+@media (max-width:900px){
+  html,body{height:auto}
+  .app{height:auto;grid-template-columns:minmax(0,1fr)}
+  .stage{height:68vh;min-height:340px}
+  .panel{overflow:visible}
+}
+@media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+</style>
+
+</head>
+<body>
+<div class="app" id="app">
+  <section class="stage" id="stage" aria-label="3D 시연 화면">
+    <canvas id="c"></canvas>
+    <div class="labels" id="labels"></div>
+    <div class="banner" id="banner" aria-live="polite">
+      <span class="count" id="bCount">1 / 7</span>
+      <strong id="bTitle">감시 대기</strong>
+      <span class="desc" id="bDesc"></span>
+    </div>
+    <div class="viewbar">
+      <button class="chip" id="vAll" type="button">전체 보기</button>
+      <button class="chip" id="vCut" type="button">드럼 측면</button>
+      <button class="chip" id="vFront" type="button">정면</button>
+      <button class="chip" id="tCut" type="button" aria-pressed="true">단면</button>
+      <button class="chip" id="tLab" type="button" aria-pressed="true">부품 이름</button>
+      <button class="chip" id="tFull" type="button">전체 화면</button>
+    </div>
+    <div class="fallback" id="fallback" hidden>3D 화면을 불러오지 못했습니다. 인터넷 연결과 브라우저의 WebGL 지원을 확인한 뒤 새로 고침해 주세요.</div>
+  </section>
+
+  <aside class="panel">
+    <div>
+      <div class="head">
+        <h1>세탁기 진입 방지 시스템</h1>
+        <span class="mode" id="mode">감시 모드</span>
+      </div>
+      <p class="sub">센서 3종과 리니어 액추에이터 이동 벽체의 동작 시연</p>
+    </div>
+
+    <div>
+      <h2>시나리오</h2>
+      <div class="scen">
+        <button type="button" id="s1" aria-pressed="true"><kbd>1</kbd><b>고양이 접근 차단</b><span>감지 → 경고 → 벽체 전진</span></button>
+        <button type="button" id="s2" aria-pressed="false"><kbd>2</kbd><b>세탁물 배출 보조</b><span>문 열림 → 벽체가 밀어 줌</span></button>
+      </div>
+    </div>
+
+    <div class="transport">
+      <div class="row">
+        <button class="btn primary" id="play" type="button">재생</button>
+        <button class="btn" id="restart" type="button">처음부터</button>
+        <select id="speed" aria-label="재생 속도"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option></select>
+        <button class="btn" id="sound" type="button" aria-pressed="true">소리 켬</button>
+        <span class="time" id="time">0.0 / 0.0 s</span>
+      </div>
+      <input type="range" id="scrub" min="0" max="1000" value="0" aria-label="진행 위치">
+    </div>
+
+    <div>
+      <h2>동작 순서</h2>
+      <ol class="steps" id="steps"></ol>
+    </div>
+
+    <div>
+      <h2>센서 값</h2>
+      <div class="read">
+        <div class="cell" id="cTof"><span class="k">ToF · 문 거리</span><span class="v" id="vTof">—</span><span class="s" id="sTof">—</span></div>
+        <div class="cell" id="cMlx"><span class="k">MLX90614 · 표면온도</span><span class="v" id="vMlx">—</span><span class="s" id="sMlx">—</span></div>
+        <div class="cell" id="cObj"><span class="k">초음파/PIR · 객체</span><span class="v" id="vObj">—</span><span class="s" id="sObj">—</span></div>
+        <div class="cell" id="cStr"><span class="k">액추에이터 스트로크</span><span class="v" id="vStr">—</span><span class="s" id="sStr">—</span></div>
+        <div class="cell wide" id="cFif"><span class="k" id="kFif">드럼 안 빈 공간 깊이</span><span class="v" id="vFif">—</span><span class="s" id="sFif">—</span></div>
+      </div>
+    </div>
+
+    <div>
+      <h2>제어 구성</h2>
+      <div class="diagram">
+        <div class="col">
+          <div class="node" id="nTof"><b>문 열림 감지</b><span>ToF</span></div>
+          <div class="node" id="nMlx"><b>온도 센서</b><span>MLX90614</span></div>
+          <div class="node" id="nObj"><b>객체 감지</b><span>초음파/PIR</span></div>
+        </div>
+        <span class="wire">→</span>
+        <div class="node" id="nMcu"><b>마이크로컨트롤러</b><span>Arduino/ESP32</span></div>
+        <span class="wire">→</span>
+        <div class="col">
+          <div class="node" id="nMot"><b>모터 제어</b><span>리니어 액추에이터</span></div>
+          <div class="node" id="nAlm"><b>알림 장치</b><span>LED/부저</span></div>
+        </div>
+      </div>
+    </div>
+
+    <p class="keys"><kbd>1</kbd> <kbd>2</kbd> 시나리오 · <kbd>Space</kbd> 재생/정지 · <kbd>R</kbd> 처음부터 · 드래그로 시점 회전, 휠로 확대</p>
+  </aside>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function(){
+'use strict';
+var $=function(id){return document.getElementById(id)};
+var clamp=function(x,a,b){return Math.min(b,Math.max(a,x))};
+var sm=function(x){x=clamp(x,0,1);return x*x*(3-2*x)};
+var lerp=function(a,b,f){return a+(b-a)*f};
+var lerpAng=function(a,b,f){var d=((b-a+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;return a+d*f};
+var setT=function(el,s){if(el.textContent!==s)el.textContent=s};
+var setC=function(el,c){if(el.className!==c)el.className=c};
+function firstTime(pred,from,to){for(var t=from;t<=to;t+=0.02){if(pred(t))return t}return to}
+
+var stage=$('stage'),canvas=$('c');
+if(!window.THREE){$('fallback').hidden=false;return}
+var T3=THREE,renderer;
+try{renderer=new T3.WebGLRenderer({canvas:canvas,antialias:true})}catch(e){$('fallback').hidden=false;return}
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.outputEncoding=T3.sRGBEncoding;
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=T3.PCFSoftShadowMap;
+
+var scene=new T3.Scene();
+var camera=new T3.PerspectiveCamera(40,1,0.05,40);
+var VIEWS={all:{p:[2.0,1.3,2.5],t:[-0.1,0.45,0.6]},cut:{p:[1.55,0.72,0.75],t:[0,0.42,0.06]},front:{p:[0.35,1.0,2.9],t:[0,0.5,0.4]}};
+camera.position.set(2.0,1.3,2.5);
+var controls=null,target=new T3.Vector3(-0.1,0.45,0.6);
+if(T3.OrbitControls){controls=new T3.OrbitControls(camera,canvas);controls.enableDamping=true;controls.dampingFactor=0.1;
+  controls.maxPolarAngle=Math.PI/2-0.03;controls.minDistance=0.7;controls.maxDistance=7;controls.target.copy(target)}
+camera.lookAt(target);
+var camTween=null;
+function goView(k){var v=VIEWS[k];camTween={p0:camera.position.clone(),t0:(controls?controls.target:target).clone(),
+  p1:new T3.Vector3(v.p[0],v.p[1],v.p[2]),t1:new T3.Vector3(v.t[0],v.t[1],v.t[2]),f:0}}
+
+scene.add(new T3.HemisphereLight(0xffffff,0x8690a6,0.8));
+var sun=new T3.DirectionalLight(0xffffff,0.75);sun.position.set(2.2,3.6,2.6);sun.castShadow=true;
+sun.shadow.mapSize.set(1024,1024);var sc=sun.shadow.camera;sc.left=-3;sc.right=3;sc.top=3;sc.bottom=-3;sc.near=0.5;sc.far=10;
+scene.add(sun);
+
+function M(color,o){o=o||{};o.color=color;if(o.roughness===undefined)o.roughness=0.65;return new T3.MeshStandardMaterial(o)}
+function mesh(g,m,x,y,z,parent){var o=new T3.Mesh(g,m);o.position.set(x||0,y||0,z||0);(parent||scene).add(o);return o}
+
+/* ---------- floor ---------- */
+var floorMat=M(0xcbd3e0,{roughness:0.95});
+var floor=mesh(new T3.CircleGeometry(5,64),floorMat,0,0,0);floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;
+var zoneMat=new T3.MeshBasicMaterial({color:0x2f5fe0,transparent:true,opacity:0.45,side:T3.DoubleSide});
+var zone=mesh(new T3.RingGeometry(0.885,0.9,64,1,Math.PI,Math.PI),zoneMat,0,0.004,0.3);zone.rotation.x=-Math.PI/2;
+
+/* ---------- washer ---------- */
+var CY=0.42,W0=-0.15,MOUTH=0.3;
+var washer=new T3.Group();scene.add(washer);
+var bodyM=M(0xc6cad2,{metalness:0.1,roughness:0.55});
+var darkM=M(0x4a4f58,{roughness:0.6});
+mesh(new T3.BoxGeometry(0.6,0.83,0.02),bodyM,0,0.435,-0.29,washer);
+mesh(new T3.BoxGeometry(0.02,0.83,0.6),bodyM,-0.29,0.435,0,washer);
+var rightPanel=mesh(new T3.BoxGeometry(0.02,0.83,0.6),bodyM,0.29,0.435,0,washer);
+mesh(new T3.BoxGeometry(0.6,0.02,0.6),bodyM,0,0.84,0,washer);
+mesh(new T3.BoxGeometry(0.6,0.02,0.6),bodyM,0,0.03,0,washer);
+[[-0.24,-0.24],[0.24,-0.24],[-0.24,0.24],[0.24,0.24]].forEach(function(p){mesh(new T3.BoxGeometry(0.06,0.02,0.06),darkM,p[0],0.01,p[1],washer)});
+(function(){var s=new T3.Shape();s.moveTo(-0.3,0.02);s.lineTo(0.3,0.02);s.lineTo(0.3,0.85);s.lineTo(-0.3,0.85);s.lineTo(-0.3,0.02);
+  var h=new T3.Path();h.absarc(0,CY,0.215,0,Math.PI*2,true);s.holes.push(h);
+  mesh(new T3.ExtrudeGeometry(s,{depth:0.02,bevelEnabled:false,curveSegments:48}),bodyM,0,0,0.28,washer)})();
+mesh(new T3.BoxGeometry(0.6,0.1,0.006),M(0xaeb3bd,{roughness:0.5}),0,0.79,0.302,washer);
+var knob=mesh(new T3.CylinderGeometry(0.022,0.022,0.02,24),M(0xe9ebef),-0.02,0.79,0.312,washer);knob.rotation.x=Math.PI/2;
+mesh(new T3.BoxGeometry(0.12,0.05,0.004),M(0x1c2230,{roughness:0.3}),0.19,0.79,0.306,washer);
+mesh(new T3.TorusGeometry(0.215,0.022,12,48),darkM,0,CY,0.3,washer);
+
+var drumM=M(0x9aa1ac,{metalness:0.45,roughness:0.4,side:T3.DoubleSide});
+var drumFull=mesh(new T3.CylinderGeometry(0.205,0.205,0.5,48,1,true),drumM,0,CY,0.01,washer);drumFull.rotation.x=Math.PI/2;
+var drumCut=mesh(new T3.CylinderGeometry(0.205,0.205,0.5,48,1,true,Math.PI*0.95,Math.PI*1.2),drumM,0,CY,0.01,washer);drumCut.rotation.x=Math.PI/2;
+mesh(new T3.CircleGeometry(0.205,48),M(0x7b828e,{metalness:0.3}),0,CY,-0.239,washer);
+mesh(new T3.BoxGeometry(0.012,0.012,0.47),darkM,-0.08,CY-0.183,0,washer);
+mesh(new T3.BoxGeometry(0.012,0.012,0.47),darkM,0.08,CY-0.183,0,washer);
+
+/* moving wall + linear actuator */
+var wall=new T3.Group();wall.position.set(0,CY,W0);washer.add(wall);
+var wallM=M(0x7da2ff,{roughness:0.45,emissive:0x1b3fb0,emissiveIntensity:0});
+var wallDisc=mesh(new T3.CylinderGeometry(0.195,0.195,0.03,48),wallM,0,0,0,wall);wallDisc.rotation.x=Math.PI/2;
+mesh(new T3.BoxGeometry(0.2,0.02,0.05),darkM,0,-0.175,-0.02,wall);
+var housing=mesh(new T3.CylinderGeometry(0.04,0.04,0.06,24),M(0x5b6270,{metalness:0.4}),0,CY,-0.21,washer);housing.rotation.x=Math.PI/2;
+var rod=mesh(new T3.CylinderGeometry(0.012,0.012,1,16),M(0xdfe3ea,{metalness:0.7,roughness:0.25}),0,CY,0,washer);rod.rotation.x=Math.PI/2;
+
+/* door */
+var door=new T3.Group();door.position.set(-0.24,CY,0.305);washer.add(door);
+mesh(new T3.TorusGeometry(0.215,0.032,12,48),M(0xb9bec8,{metalness:0.2,roughness:0.5}),0.24,0,0.02,door);
+var glass=mesh(new T3.CylinderGeometry(0.19,0.16,0.04,40),M(0xe6eefb,{transparent:true,opacity:0.32,roughness:0.1}),0.24,0,0.012,door);glass.rotation.x=Math.PI/2;
+mesh(new T3.BoxGeometry(0.02,0.09,0.03),darkM,0.47,0,0.035,door);
+
+/* sensors */
+var tofM=M(0xb3202b,{emissive:0xff2a36,emissiveIntensity:0.3});
+var tof=mesh(new T3.BoxGeometry(0.034,0.016,0.02),tofM,0,CY+0.188,0.287,washer);
+var tofBeamM=new T3.MeshBasicMaterial({color:0xff3b46,transparent:true,opacity:0.7});
+var tofBeam=mesh(new T3.CylinderGeometry(0.003,0.003,1,8),tofBeamM,0,CY+0.188,0.3,washer);tofBeam.rotation.x=Math.PI/2;
+
+var mlx=mesh(new T3.CylinderGeometry(0.013,0.013,0.022,16),M(0xd8dce3,{metalness:0.8,roughness:0.25}),0.135,CY+0.13,0.287,washer);mlx.rotation.x=Math.PI/2;
+var coneG=new T3.Group();coneG.position.set(0.135,CY+0.13,0.3);coneG.rotation.x=0.38;washer.add(coneG);
+var coneM=new T3.MeshBasicMaterial({color:0xff4b3a,transparent:true,opacity:0.1,side:T3.DoubleSide,depthWrite:false});
+var cone=mesh(new T3.ConeGeometry(0.3,0.85,28,1,true),coneM,0,0,0.425,coneG);cone.rotation.x=-Math.PI/2;
+
+var usM=M(0x1f3fe0,{emissive:0x2a55ff,emissiveIntensity:0.15});
+var us=mesh(new T3.BoxGeometry(0.056,0.024,0.016),usM,-0.105,CY-0.16,0.287,washer);
+[-0.014,0.014].forEach(function(dx){var e=mesh(new T3.CylinderGeometry(0.008,0.008,0.008,12),M(0xf2f4f8),dx,0,0.01,us);e.rotation.x=Math.PI/2});
+var waveG=new T3.Group();waveG.position.set(-0.105,CY-0.16,0.3);waveG.rotation.x=0.22;washer.add(waveG);
+var waves=[];for(var i=0;i<3;i++){var wm=new T3.MeshBasicMaterial({color:0x3f6bff,transparent:true,opacity:0.5,depthWrite:false});
+  waves.push(mesh(new T3.TorusGeometry(1,0.012,6,40),wm,0,0,0,waveG))}
+
+var lampM=M(0x8a2a30,{emissive:0xff1f2d,emissiveIntensity:0,roughness:0.3});
+var lamp=mesh(new T3.SphereGeometry(0.036,20,10,0,Math.PI*2,0,Math.PI/2),lampM,0.2,0.85,0.2,washer);
+mesh(new T3.CylinderGeometry(0.04,0.04,0.008,20),darkM,0.2,0.852,0.2,washer);
+var lampLight=new T3.PointLight(0xff2a36,0,2.2);lampLight.position.set(0.2,0.95,0.2);washer.add(lampLight);
+var mcu=mesh(new T3.BoxGeometry(0.1,0.012,0.065),M(0x1f7a4d),-0.17,0.856,-0.15,washer);
+mesh(new T3.BoxGeometry(0.03,0.01,0.03),M(0x22262e),0,0.01,0,mcu);
+
+washer.traverse(function(o){if(o.isMesh&&!o.material.transparent){o.castShadow=true;o.receiveShadow=true}});
+
+/* ---------- cat ---------- */
+var cat=new T3.Group();scene.add(cat);
+var furM=M(0xe8963a),furD=M(0xc97722);
+var cb=mesh(new T3.SphereGeometry(0.09,20,14),furM,0,0.175,0,cat);cb.scale.set(0.78,0.78,1.65);
+var catHead=new T3.Group();catHead.position.set(0,0.245,0.165);cat.add(catHead);
+mesh(new T3.SphereGeometry(0.066,18,14),furM,0,0,0,catHead);
+[-0.036,0.036].forEach(function(dx){mesh(new T3.ConeGeometry(0.026,0.05,4),furD,dx,0.062,0,catHead);
+  mesh(new T3.SphereGeometry(0.009,8,8),M(0x1b1e24),dx*0.7,0.012,0.058,catHead)});
+mesh(new T3.SphereGeometry(0.008,8,8),M(0xe58a9a),0,-0.008,0.066,catHead);
+var tail=new T3.Group();tail.position.set(0,0.21,-0.14);cat.add(tail);
+var tl=mesh(new T3.CylinderGeometry(0.008,0.014,0.22,8),furD,0,0.1,-0.03,tail);tl.rotation.x=-0.35;
+var catLegs=[];[[-0.045,0.09],[0.045,0.09],[-0.045,-0.09],[0.045,-0.09]].forEach(function(p){
+  var g=new T3.Group();g.position.set(p[0],0.125,p[1]);cat.add(g);mesh(new T3.CylinderGeometry(0.017,0.015,0.125,8),furM,0,-0.0625,0,g);catLegs.push(g)});
+cat.traverse(function(o){if(o.isMesh)o.castShadow=true});
+
+/* ---------- person (elderly) ---------- */
+var person=new T3.Group();scene.add(person);
+var skinM=M(0xe9c9a8),clothM=M(0x5f8f8a),pantM=M(0x47506a),hairM=M(0xdcdfe4);
+var pLegs=[];[-0.07,0.07].forEach(function(dx){var g=new T3.Group();g.position.set(dx,0.72,0);person.add(g);
+  mesh(new T3.CylinderGeometry(0.048,0.04,0.7,10),pantM,0,-0.35,0,g);mesh(new T3.BoxGeometry(0.07,0.04,0.13),M(0x2c313c),0,-0.7,0.02,g);pLegs.push(g)});
+var torso=new T3.Group();torso.position.set(0,0.72,0);torso.rotation.x=0.14;person.add(torso);
+mesh(new T3.CylinderGeometry(0.105,0.13,0.5,14),clothM,0,0.25,0,torso);
+mesh(new T3.SphereGeometry(0.095,18,14),skinM,0,0.62,0.01,torso);
+mesh(new T3.SphereGeometry(0.1,18,10,0,Math.PI*2,0,Math.PI*0.55),hairM,0,0.63,-0.005,torso);
+mesh(new T3.SphereGeometry(0.04,10,8),hairM,0,0.68,-0.09,torso);
+var armR=new T3.Group();armR.position.set(-0.135,0.46,0);torso.add(armR);
+mesh(new T3.CylinderGeometry(0.03,0.026,0.44,8),clothM,0,-0.22,0,armR);mesh(new T3.SphereGeometry(0.032,8,8),skinM,0,-0.45,0,armR);
+var armL=new T3.Group();armL.position.set(0.135,0.46,0);armL.rotation.x=-0.45;torso.add(armL);
+mesh(new T3.CylinderGeometry(0.03,0.026,0.44,8),clothM,0,-0.22,0,armL);mesh(new T3.SphereGeometry(0.032,8,8),skinM,0,-0.45,0,armL);
+var cane=mesh(new T3.CylinderGeometry(0.011,0.011,0.82,8),M(0x6b4a2e),0.17,0.41,0.2,person);
+person.traverse(function(o){if(o.isMesh)o.castShadow=true});
+
+/* ---------- laundry + basket ---------- */
+var LC=[0xf3f3f1,0x6fa8dc,0xf4b6c2,0xffd966,0x93c47d,0xb4a7d6,0xe9e6df];
+var LZ=[-0.08,-0.03,0.02,0.07,0.12,0.16,0.2];
+var items=LZ.map(function(z,i){var r=0.055+((i*7)%4)*0.004;
+  var m=mesh(new T3.IcosahedronGeometry(r,1),M(LC[i],{roughness:0.95,flatShading:true}),0,0,0);
+  m.scale.set(1.15,0.8,1);m.rotation.set(i*1.3,i*0.7,i*2.1);m.castShadow=true;
+  m.userData={z0:z,x:(i%2?0.055:-0.05)+((i%3)-1)*0.02,y:CY-0.205+r*0.8+(i%3)*0.022};return m});
+var basket=new T3.Group();basket.position.set(0.52,0,0.9);scene.add(basket);
+var bk=mesh(new T3.CylinderGeometry(0.18,0.14,0.2,24,1,true),M(0xcaa26a,{side:T3.DoubleSide,roughness:0.9}),0,0.1,0,basket);bk.castShadow=true;
+mesh(new T3.CircleGeometry(0.14,24),M(0xb58d57),0,0.004,0,basket).rotation.x=-Math.PI/2;
+
+/* ---------- labels ---------- */
+var labelsEl=$('labels'),labels=[];
+function addLabel(text,obj,dy){var el=document.createElement('span');el.className='tag';el.textContent=text;labelsEl.appendChild(el);
+  var L={el:el,obj:obj,dy:dy||0,cls:'tag'};labels.push(L);return L}
+var LB={tof:addLabel('ToF 센서',tof,0.03),mlx:addLabel('MLX90614',mlx,0.03),us:addLabel('초음파/PIR',us,-0.07),
+  wall:addLabel('이동 벽체',wallDisc,0.22),act:addLabel('리니어 액추에이터',housing,-0.09),lamp:addLabel('LED·부저',lamp,0.06),mcu:addLabel('MCU',mcu,0.04)};
+var labelsOn=true,vtmp=new T3.Vector3();
+function updateLabels(){var w=stage.clientWidth,h=stage.clientHeight;
+  for(var i=0;i<labels.length;i++){var L=labels[i];L.obj.getWorldPosition(vtmp);vtmp.y+=L.dy;vtmp.project(camera);
+    var show=labelsOn&&vtmp.z<1&&vtmp.z>-1;
+    L.el.style.display=show?'':'none';
+    if(show)L.el.style.transform='translate('+((vtmp.x*0.5+0.5)*w).toFixed(1)+'px,'+((-vtmp.y*0.5+0.5)*h).toFixed(1)+'px) translate(-50%,-50%)';
+    setC(L.el,L.cls)}}
+
+/* ---------- theme ---------- */
+function applyTheme(){var cs=getComputedStyle(document.documentElement);
+  var s=cs.getPropertyValue('--stage').trim()||'#dfe5ef',f=cs.getPropertyValue('--floor').trim()||'#cbd3e0';
+  renderer.setClearColor(new T3.Color(s),1);floorMat.color.set(f)}
+applyTheme();
+try{window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',applyTheme)}catch(e){}
+new MutationObserver(applyTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+
+/* ---------- scenario 1: cat ---------- */
+var P0=[-1.3,2.1],P1=[0.02,0.72],P2=[-1.5,1.7],OPEN=110*Math.PI/180;
+function catAt(t){var x,z;
+  if(t<=9.2){var f=clamp(t/5,0,1);x=lerp(P0[0],P1[0],f);z=lerp(P0[1],P1[1],f)}
+  else{var g=clamp((t-9.2)/4,0,1);x=lerp(P1[0],P2[0],g);z=lerp(P1[1],P2[1],g)}
+  return{x:x,z:z,dist:Math.hypot(x,z-MOUTH)-0.18}}
+var aIn=Math.atan2(P1[0]-P0[0],P1[1]-P0[1]),aOut=Math.atan2(P2[0]-P1[0],P2[1]-P1[1]);
+var tDet=firstTime(function(t){return catAt(t).dist<0.9},0,9),
+    tTh=firstTime(function(t){return catAt(t).dist<0.6},0,9),
+    tAl=tTh+0.3,tAdv=tAl+1.0,tBlk=tAdv+3,
+    tClr=firstTime(function(t){return catAt(t).dist>=0.9},9.2,14),tRet=tClr+1.5,T1=tRet+3.5;
+var S1={T:T1,times:[0,tDet,tTh,tAl,tAdv,tBlk,tClr],
+  steps:[['감시 대기','문이 열린 채 방치되어 있습니다. 드럼은 비어 있고 센서가 입구 앞을 감시합니다.'],
+    ['객체 감지','초음파/PIR 센서가 90 cm 안으로 들어온 움직임을 잡습니다.'],
+    ['체온 확인','적외선 온도 센서가 38 °C대 표면온도를 읽어 생체로 판정합니다.'],
+    ['경고 알림','LED 점멸과 부저로 보호자에게 알립니다.'],
+    ['벽체 전진','드럼 안이 비어 있음을 확인한 뒤 액추에이터가 벽체를 입구까지 밉니다.'],
+    ['진입 차단','드럼 안 공간이 사라져 고양이가 들어갈 수 없습니다.'],
+    ['감지 해제·복귀','감지 구역이 비면 경고를 끄고 벽체를 원위치로 되돌립니다.']],
+  at:function(t){var c=catAt(t),det=c.dist<0.9,thF=sm((0.75-c.dist)/0.15),th=c.dist<0.6;
+    var adv=sm((t-tAdv)/3),ret=sm((t-tRet)/3),w=lerp(W0,0.215,adv*(1-ret));
+    var warn=t>=tAl&&det;
+    return{door:OPEN,w:w,lamp:warn?'warn':'off',det:det,th:th,temp:22.5+15.9*thF+Math.sin(t*7)*0.08,
+      objCm:c.dist<1.5?c.dist*100:null,tofOn:false,motor:(adv>0&&adv<1)||(ret>0&&ret<1),
+      mode:warn||(w>W0+0.01)?['차단 모드','warn']:['감시 모드',''],
+      fifth:['드럼 안 빈 공간 깊이',((0.26-(w+0.015))*100).toFixed(1)+' cm',w>0.2?['진입 불가','alert']:['진입 가능',''] ],
+      cat:{x:c.x,z:c.z,rot:lerpAng(aIn,aOut,sm((t-8.8)/0.5)),walk:t<5||(t>9.2&&t<13.2)}}}};
+
+/* ---------- scenario 2: unloading assist ---------- */
+var Q0=[-0.9,2.3],Q1=[0.12,0.98],qA=Math.atan2(Q1[0]-Q0[0],Q1[1]-Q0[1]);
+function doorAt(t){return OPEN*sm((t-3.5)/2)}
+function tofMm(d){return 18+602*(d/OPEN)}
+var tDoor=firstTime(function(t){return tofMm(doorAt(t))>100},3,6),tMode=5.5,tPush=6.3,tFront=10.3,tBack=14,T2=17;
+function itemState(t,w){var wf=w+0.015,prev=-1,out=[],n=items.length,minZ=null,left=0;
+  for(var i=0;i<n;i++){var u=items[i].userData,z=Math.max(u.z0,i===0?wf+0.05:prev+0.022);
+    var squeeze=z-u.z0,y=u.y+Math.min(squeeze,0.12)*(i%2?0.45:0.2);prev=z;
+    var k=n-1-i,f=sm((t-(10.5+k*0.45))/0.6);
+    if(f<0.5){left++;if(minZ===null||z<minZ)minZ=z}
+    var bx=0.52+((k%3)-1)*0.06,by=0.1+Math.floor(k/3)*0.05,bz=0.9+(((k*2)%3)-1)*0.05;
+    out.push({x:lerp(u.x,bx,f),y:lerp(y,by,f)+Math.sin(Math.PI*f)*0.3,z:lerp(z,bz,f)})}
+  return{pos:out,minZ:minZ,left:left}}
+var S2={T:T2,times:[0,tDoor,tMode,tPush,tFront,tBack],
+  steps:[['세탁 완료 대기','세탁물이 드럼 안쪽 깊이 놓여 있습니다.'],
+    ['문 열림 감지','ToF 센서의 거리 값이 100 mm를 넘으면 문 열림으로 판정합니다.'],
+    ['배출 보조 판정','세탁 완료 직후의 문 열림이고 드럼 안에 생체 반응이 없어 보조 모드로 전환합니다.'],
+    ['벽체 전진','벽체가 천천히 전진하며 세탁물을 입구 쪽으로 밉니다.'],
+    ['세탁물 꺼내기','허리를 깊이 숙이거나 팔을 뻗지 않고 입구에서 바로 꺼냅니다.'],
+    ['벽체 복귀','드럼이 비면 벽체가 원위치로 돌아갑니다.']],
+  at:function(t){var f=sm(t/3.5),x=lerp(Q0[0],Q1[0],f),z=lerp(Q0[1],Q1[1],f);
+    var d=doorAt(t),adv=sm((t-tPush)/4),ret=sm((t-tBack)/2.5),w=lerp(W0,0.06,adv*(1-ret));
+    var it=itemState(t,w),pd=Math.hypot(x,z-MOUTH)-0.15,open=tofMm(d)>100;
+    var arm=-1.25*sm((t-3.0)/0.6)*(1-sm((t-5.4)/0.6));
+    if(t>10.2&&t<14.1)arm=-1.0*sm((t-10.2)/0.4)*(1-sm((t-13.7)/0.4))+Math.sin(t*7)*0.18*sm((t-10.4)/0.3)*(1-sm((t-13.5)/0.3));
+    var info=t>=tMode&&t<16.5;
+    return{door:d,w:w,lamp:info?'info':'off',det:d>0.5&&pd<0.9,th:false,temp:23.5+7.6*(d/OPEN)*(it.left/items.length)+Math.sin(t*5)*0.06,
+      objCm:d>0.5&&pd<1.5?pd*100:null,tofOn:open,motor:(adv>0&&adv<1)||(ret>0&&ret<1),
+      mode:info?['배출 보조 모드','info']:['대기',''],
+      fifth:['손을 뻗어야 하는 깊이',it.minZ===null?'— (비어 있음)':((MOUTH-it.minZ)*100).toFixed(1)+' cm',
+        it.minZ===null?['꺼내기 완료','good']:(MOUTH-it.minZ<0.2?['입구에서 바로 닿음','good']:['팔을 깊이 넣어야 함','']) ],
+      person:{x:x,z:z,rot:lerpAng(qA,Math.PI,sm((t-2.8)/0.7)),walk:t<3.5,arm:arm},items:it.pos}}};
+
+/* ---------- state ---------- */
+var SC={1:S1,2:S2},cur=1,t=0,playing=false,speed=1,cutOn=true;
+var stepsEl=$('steps'),stepBtns=[];
+function buildSteps(){stepsEl.innerHTML='';stepBtns=[];SC[cur].steps.forEach(function(s,i){
+  var li=document.createElement('li'),b=document.createElement('button');b.type='button';
+  var sp=document.createElement('span');sp.textContent=s[0];b.appendChild(sp);
+  b.addEventListener('click',function(){t=SC[cur].times[i]+0.01;playing=false;syncPlay()});
+  li.appendChild(b);stepsEl.appendChild(li);stepBtns.push(b)})}
+function setScenario(n,autoplay){cur=n;t=0;playing=!!autoplay;lastChimeT=0;
+  $('s1').setAttribute('aria-pressed',String(n===1));$('s2').setAttribute('aria-pressed',String(n===2));
+  cat.visible=n===1;person.visible=basket.visible=n===2;items.forEach(function(m){m.visible=n===2});
+  buildSteps();syncPlay()}
+function syncPlay(){setT($('play'),playing?'일시정지':(t>=SC[cur].T-0.01?'다시 재생':'재생'))}
+
+/* ---------- audio ---------- */
+var actx=null,soundOn=true,nextBeep=0,beepHi=false,lastChimeT=0;
+function ensureAudio(){try{if(!actx){var A=window.AudioContext||window.webkitAudioContext;if(A)actx=new A()}
+  if(actx&&actx.state==='suspended')actx.resume()}catch(e){}}
+function tone(freq,dur,type,vol){if(!actx||!soundOn)return;try{var o=actx.createOscillator(),g=actx.createGain(),n=actx.currentTime;
+  o.type=type;o.frequency.value=freq;g.gain.setValueAtTime(0.0001,n);g.gain.linearRampToValueAtTime(vol,n+0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001,n+dur);o.connect(g);g.connect(actx.destination);o.start(n);o.stop(n+dur+0.03)}catch(e){}}
+
+/* ---------- apply ---------- */
+var D={vTof:$('vTof'),sTof:$('sTof'),cTof:$('cTof'),vMlx:$('vMlx'),sMlx:$('sMlx'),cMlx:$('cMlx'),vObj:$('vObj'),sObj:$('sObj'),cObj:$('cObj'),
+  vStr:$('vStr'),sStr:$('sStr'),cStr:$('cStr'),kFif:$('kFif'),vFif:$('vFif'),sFif:$('sFif'),cFif:$('cFif'),
+  nTof:$('nTof'),nMlx:$('nMlx'),nObj:$('nObj'),nMcu:$('nMcu'),nMot:$('nMot'),nAlm:$('nAlm'),
+  banner:$('banner'),bCount:$('bCount'),bTitle:$('bTitle'),bDesc:$('bDesc'),mode:$('mode'),time:$('time'),scrub:$('scrub')};
+var scrubbing=false;
+function apply(now){var S=SC[cur],st=S.at(t),i;
+  door.rotation.y=-st.door;
+  wall.position.z=st.w;var len=Math.max(0.001,(st.w-0.015)-(-0.18));rod.scale.y=len;rod.position.z=-0.18+len/2;
+  wallM.emissiveIntensity=st.motor?0.35:0;
+  rightPanel.visible=!cutOn;drumFull.visible=!cutOn;drumCut.visible=cutOn;
+
+  var doorOpen=st.door>0.5,mm=tofMm(st.door);
+  tofBeam.scale.y=Math.min(mm,520)/1000;tofBeam.position.z=0.297+tofBeam.scale.y/2;tofBeam.visible=mm>30;
+  cone.visible=doorOpen;coneM.opacity=st.th?0.26+Math.sin(now*8)*0.05:0.09;
+  waveG.visible=doorOpen;
+  for(i=0;i<3;i++){var p=((now*0.7+i/3)%1);waves[i].position.z=p*0.9;waves[i].scale.setScalar(0.03+p*0.42);
+    waves[i].material.opacity=(1-p)*(st.det?0.75:0.35);waves[i].material.color.set(st.det&&st.lamp==='warn'?0xff3b46:0x3f6bff)}
+  zone.visible=doorOpen;zoneMat.color.set(st.det&&cur===1?0xe5383b:0x2f5fe0);zoneMat.opacity=st.det&&cur===1?0.9:0.45;
+
+  var flash=Math.floor(now*5)%2===0;
+  if(st.lamp==='warn'){lampM.emissive.set(0xff1f2d);lampM.emissiveIntensity=flash?1.6:0.1;lampLight.color.set(0xff2a36);lampLight.intensity=flash?1.4:0}
+  else if(st.lamp==='info'){lampM.emissive.set(0x20d07c);lampM.emissiveIntensity=1.0;lampLight.color.set(0x20d07c);lampLight.intensity=0.5}
+  else{lampM.emissiveIntensity=0;lampLight.intensity=0}
+
+  if(st.cat){cat.position.set(st.cat.x,0,st.cat.z);cat.rotation.y=st.cat.rot;
+    var ph=st.cat.walk?t*13:0,sw=st.cat.walk?0.6:0;
+    catLegs[0].rotation.x=Math.sin(ph)*sw;catLegs[3].rotation.x=Math.sin(ph)*sw;catLegs[1].rotation.x=-Math.sin(ph)*sw;catLegs[2].rotation.x=-Math.sin(ph)*sw;
+    cat.position.y=st.cat.walk?Math.abs(Math.sin(ph))*0.008:0;tail.rotation.z=Math.sin(now*3)*0.35;
+    catHead.rotation.x=st.cat.walk?0:-0.25+Math.sin(now*1.6)*0.12;catHead.rotation.y=st.cat.walk?0:Math.sin(now*1.1)*0.25}
+  if(st.person){person.position.set(st.person.x,0,st.person.z);person.rotation.y=st.person.rot;
+    var pp=st.person.walk?t*5.5:0,ps=st.person.walk?0.32:0;
+    pLegs[0].rotation.x=Math.sin(pp)*ps;pLegs[1].rotation.x=-Math.sin(pp)*ps;armR.rotation.x=st.person.arm;
+    for(i=0;i<items.length;i++){var q=st.items[i];items[i].position.set(q.x,q.y,q.z)}}
+
+  /* readouts */
+  setT(D.vTof,mm>600?'600+ mm':mm.toFixed(0)+' mm');setT(D.sTof,mm>100?'문 열림':'문 닫힘');setC(D.cTof,'cell'+(st.tofOn?' on':''));
+  setT(D.vMlx,st.temp.toFixed(1)+' °C');setT(D.sMlx,st.th?'생체 온도 범위':(cur===2&&st.temp>27?'세탁물 잔열':'주변 온도'));setC(D.cMlx,'cell'+(st.th?' alert':''));
+  setT(D.vObj,st.objCm===null?'— cm':st.objCm.toFixed(0)+' cm');
+  setT(D.sObj,!doorOpen?'문에 가려 비활성':(st.det?(cur===1?'움직임 감지':'사용자 감지'):'감지 없음'));setC(D.cObj,'cell'+(st.det?(cur===1?' alert':' on'):''));
+  setT(D.vStr,((st.w-W0)*1000).toFixed(0)+' mm');setT(D.sStr,st.motor?'구동 중':(st.w>W0+0.005?'전진 유지':'원위치'));setC(D.cStr,'cell'+(st.motor?' on':''));
+  setT(D.kFif,st.fifth[0]);setT(D.vFif,st.fifth[1]);setT(D.sFif,st.fifth[2][0]);setC(D.cFif,'cell wide'+(st.fifth[2][1]?' '+st.fifth[2][1]:''));
+
+  var alertCls=st.lamp==='warn'?' alert':' on';
+  setC(D.nTof,'node'+(st.tofOn?' on':''));setC(D.nMlx,'node'+(st.th?' alert':''));setC(D.nObj,'node'+(st.det?alertCls:''));
+  setC(D.nMcu,'node'+((st.det||st.tofOn||st.motor||st.lamp!=='off')?' on':''));
+  setC(D.nMot,'node'+(st.motor?' on':''));setC(D.nAlm,'node'+(st.lamp==='warn'?' alert':st.lamp==='info'?' on':''));
+  LB.tof.cls='tag'+(st.tofOn?' on':'');LB.mlx.cls='tag'+(st.th?' alert':'');LB.us.cls='tag'+(st.det?(cur===1?' alert':' on'):'');
+  LB.wall.cls=LB.act.cls='tag'+(st.motor?' on':'');LB.lamp.cls='tag'+(st.lamp==='warn'?' alert':st.lamp==='info'?' on':'');
+
+  var idx=0;for(i=0;i<S.times.length;i++){if(t>=S.times[i])idx=i}
+  for(i=0;i<stepBtns.length;i++)setC(stepBtns[i],i===idx?'now':(i<idx?'done':''));
+  setT(D.bCount,'시나리오 '+cur+' · '+(idx+1)+' / '+S.steps.length);setT(D.bTitle,S.steps[idx][0]);setT(D.bDesc,S.steps[idx][1]);
+  setC(D.banner,'banner'+(st.lamp==='warn'?' warn':st.lamp==='info'?' info':''));
+  setT(D.mode,st.mode[0]);setC(D.mode,'mode'+(st.mode[1]?' '+st.mode[1]:''));
+  setT(D.time,t.toFixed(1)+' / '+S.T.toFixed(1)+' s');
+  if(!scrubbing)D.scrub.value=String(Math.round(t/S.T*1000));
+
+  if(playing&&st.lamp==='warn'&&now>=nextBeep){tone(beepHi?988:740,0.22,'square',0.07);beepHi=!beepHi;nextBeep=now+0.3}
+  if(playing&&cur===2&&lastChimeT<tMode&&t>=tMode){tone(660,0.25,'sine',0.12);setTimeout(function(){tone(880,0.4,'sine',0.12)},190)}
+  lastChimeT=t;
+}
+
+/* ---------- loop ---------- */
+function resize(){var w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}
+if(window.ResizeObserver)new ResizeObserver(resize).observe(stage);else window.addEventListener('resize',resize);
+resize();
+var last=performance.now();
+function frame(ms){var now=ms/1000,dt=Math.min(0.05,(ms-last)/1000);last=ms;
+  if(playing){t+=dt*speed;if(t>=SC[cur].T){t=SC[cur].T;playing=false;syncPlay()}}
+  if(camTween){camTween.f=Math.min(1,camTween.f+dt/0.7);var e=sm(camTween.f);
+    camera.position.lerpVectors(camTween.p0,camTween.p1,e);var tg=controls?controls.target:target;tg.lerpVectors(camTween.t0,camTween.t1,e);
+    if(!controls)camera.lookAt(tg);if(camTween.f>=1)camTween=null}
+  if(controls)controls.update();
+  apply(now);renderer.render(scene,camera);updateLabels();requestAnimationFrame(frame)}
+
+/* ---------- controls ---------- */
+function start(n){ensureAudio();setScenario(n,true)}
+function toggle(){ensureAudio();if(t>=SC[cur].T-0.01){t=0;lastChimeT=0;playing=true}else playing=!playing;syncPlay()}
+function restart(){ensureAudio();t=0;lastChimeT=0;playing=true;syncPlay()}
+$('s1').addEventListener('click',function(){start(1)});$('s2').addEventListener('click',function(){start(2)});
+$('play').addEventListener('click',toggle);$('restart').addEventListener('click',restart);
+$('speed').addEventListener('change',function(e){speed=parseFloat(e.target.value)||1});
+$('sound').addEventListener('click',function(e){soundOn=!soundOn;e.currentTarget.setAttribute('aria-pressed',String(soundOn));setT(e.currentTarget,soundOn?'소리 켬':'소리 끔');if(soundOn)ensureAudio()});
+D.scrub.addEventListener('input',function(){scrubbing=true;playing=false;t=D.scrub.value/1000*SC[cur].T;lastChimeT=t;syncPlay()});
+D.scrub.addEventListener('change',function(){scrubbing=false});
+$('vAll').addEventListener('click',function(){goView('all')});$('vCut').addEventListener('click',function(){goView('cut')});$('vFront').addEventListener('click',function(){goView('front')});
+$('tCut').addEventListener('click',function(e){cutOn=!cutOn;e.currentTarget.setAttribute('aria-pressed',String(cutOn))});
+$('tLab').addEventListener('click',function(e){labelsOn=!labelsOn;e.currentTarget.setAttribute('aria-pressed',String(labelsOn))});
+$('tFull').addEventListener('click',function(){var el=$('app');try{
+  if(document.fullscreenElement){document.exitFullscreen()}
+  else{var r=(el.requestFullscreen||el.webkitRequestFullscreen);if(r){var pr=r.call(el);if(pr&&pr.catch)pr.catch(function(){})}}}catch(e){}});
+document.addEventListener('keydown',function(e){var tag=(e.target&&e.target.tagName)||'';
+  if(tag==='INPUT'||tag==='SELECT'||tag==='TEXTAREA')return;
+  if(e.key==='1'){start(1)}else if(e.key==='2'){start(2)}
+  else if(e.key==='r'||e.key==='R'||e.key==='ㄱ'){restart()}
+  else if(e.key===' '&&tag!=='BUTTON'){e.preventDefault();toggle()}});
+
+setScenario(1,false);
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
