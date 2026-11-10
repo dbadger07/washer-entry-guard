@@ -244,8 +244,8 @@ var camTween=null;
 function goView(k){var v=VIEWS[k];camTween={p0:camera.position.clone(),t0:(controls?controls.target:target).clone(),
   p1:new T3.Vector3(v.p[0],v.p[1],v.p[2]),t1:new T3.Vector3(v.t[0],v.t[1],v.t[2]),f:0}}
 
-scene.add(new T3.HemisphereLight(0xffffff,0x8690a6,0.8));
-var sun=new T3.DirectionalLight(0xffffff,0.75);sun.position.set(2.2,3.6,2.6);sun.castShadow=true;
+scene.add(new T3.HemisphereLight(0xffffff,0x8690a6,0.5));
+var sun=new T3.DirectionalLight(0xffffff,0.6);sun.position.set(2.2,3.6,2.6);sun.castShadow=true;
 sun.shadow.mapSize.set(1024,1024);var sc=sun.shadow.camera;sc.left=-3;sc.right=3;sc.top=3;sc.bottom=-3;sc.near=0.5;sc.far=10;
 scene.add(sun);
 
