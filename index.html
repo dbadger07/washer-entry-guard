@@ -249,7 +249,7 @@ var sun=new T3.DirectionalLight(0xffffff,0.75);sun.position.set(2.2,3.6,2.6);sun
 sun.shadow.mapSize.set(1024,1024);var sc=sun.shadow.camera;sc.left=-3;sc.right=3;sc.top=3;sc.bottom=-3;sc.near=0.5;sc.far=10;
 scene.add(sun);
 
-function M(color,o){o=o||{};o.color=color;if(o.roughness===undefined)o.roughness=0.65;return new T3.MeshStandardMaterial(o)}
+function M(color,o){o=o||{};o.color=new T3.Color(color).convertSRGBToLinear();if(o.roughness===undefined)o.roughness=0.65;return new T3.MeshStandardMaterial(o)}
 function mesh(g,m,x,y,z,parent){var o=new T3.Mesh(g,m);o.position.set(x||0,y||0,z||0);(parent||scene).add(o);return o}
 
 /* ---------- floor ---------- */
@@ -385,7 +385,7 @@ function updateLabels(){var w=stage.clientWidth,h=stage.clientHeight;
 /* ---------- theme ---------- */
 function applyTheme(){var cs=getComputedStyle(document.documentElement);
   var s=cs.getPropertyValue('--stage').trim()||'#dfe5ef',f=cs.getPropertyValue('--floor').trim()||'#cbd3e0';
-  renderer.setClearColor(new T3.Color(s),1);floorMat.color.set(f)}
+  renderer.setClearColor(new T3.Color(s),1);floorMat.color.set(f).convertSRGBToLinear()}
 applyTheme();
 try{window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',applyTheme)}catch(e){}
 new MutationObserver(applyTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
